@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currentTabId && tabId == currentTabId) {
       const hour = parseInt(count / 3600);
       const minute = parseInt((count % 3600) / 60);
-      const second = count - hour * 3600 - minute * 60;
+      const second = parseInt(count - hour * 3600 - minute * 60);
       countDiv.innerHTML = `${getTimeString(hour)}:${getTimeString(minute)}:${getTimeString(second)}`;
     }
   }

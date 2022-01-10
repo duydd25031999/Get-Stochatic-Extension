@@ -4,6 +4,7 @@ let stochPane = null;
 let intervalId = false;
 let countTime = 0;
 let currentTabId = false;
+const STEP_TIME = 0.016 //second
 
 class IndexedDbDAO {
   constructor(name, version, upgradeCb, doneCb) {
@@ -206,10 +207,13 @@ const dbDA0 = new IndexedDbDAO(dbName, 1, function (db) {
 });
 
 let delayTimeout = false;
-function throttleHandleData(data) {
+function throttleHandleData(kdValue) {
   if (delayTimeout) {
     return;
   } else {
+    const typeData = getType();
+    const closePrice = getClosePrice();
+    const data = {...typeData, ...closePrice, ...kdValue};
     console.log("handle", data);
     dbDA0.insert(stochTbl, {
       time: new Date().getTime(),
@@ -247,23 +251,21 @@ function startGetDataInternal() {
   let check = false;
   intervalId = setInterval(() => {
     try {
-      const closePrice = getClosePrice();
       const kdValue = getKDValue();
-      const typeData = getType();
-      const data = {...typeData, ...closePrice, ...kdValue};
-      const kValue = parseFloat(data.k);
-      const dValue = parseFloat(data.d);
+      const kValue = parseFloat(kdValue.k);
+      const dValue = parseFloat(kdValue.d);
       const currentCheck = (kValue - dValue) < 0;
       if (countTime > 0 && currentCheck != check) {
-        throttleHandleData(data);
+        throttleHandleData(kdValue);
       }
       check = currentCheck
-      sendCountTime(countTime++);
+      sendCountTime(countTime);
+      countTime += STEP_TIME
     } catch (error) {
       endGetDataInternal();
       console.log("error", error);
     }
-  }, 1000);
+  }, STEP_TIME * 1000);
 } 
 
 function connectToCurrentTab(request) {
