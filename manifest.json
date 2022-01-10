@@ -1,0 +1,28 @@
+{
+  "name": "Get Stochatic",
+  "version": "1.0",
+  "manifest_version": 2,
+  "icons": {
+    "16": "assets/16.png",
+    "32": "assets/32.png",
+    "128": "assets/32.png"
+  },
+  "permissions": [
+    "activeTab",
+    "<all_urls>",
+    "tabs",
+    "notifications",
+    "downloads"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "Get Stochatic"
+  },
+  "content_security_policy": "script-src 'self' https://www.gstatic.com/firebasejs/9.6.2/firebase-app.js https://www.gstatic.com/firebasejs/9.6.2/firebase-database.js; object-src 'self'"
+}
