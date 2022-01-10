@@ -21,22 +21,26 @@ document.addEventListener('DOMContentLoaded', function () {
     chrome.tabs.sendMessage(currentTabId, { msg: "connect", tabId });
   });
 
-  function onStartClick() {
+  function sendTabMessage(msg) {
     queryCurrentTab((tabId) => {
-      chrome.tabs.sendMessage(tabId, { msg: "start" });
-    });
-  }
-  function onStopClick() {
-    queryCurrentTab((tabId) => {
-      chrome.tabs.sendMessage(tabId, { msg: "stop" });
+      chrome.tabs.sendMessage(tabId, { msg });
     });
   }
 
-  function onDownCsvClick() {
-    queryCurrentTab((tabId) => {
-      chrome.tabs.sendMessage(tabId, { msg: "down-csv" });
-    });
+  function onStartClick() {
+    sendTabMessage("start");
   }
+  function onStopClick() {
+    sendTabMessage("stop");
+  }
+
+  function onDownCsvClick() {
+    sendTabMessage("down-csv");
+  }
+
+  document.querySelector(".clear-data").addEventListener("click", () => {
+    sendTabMessage("clear-data");
+  });
 
   function getTimeString(timeNumber) {
     if (timeNumber < 10) {

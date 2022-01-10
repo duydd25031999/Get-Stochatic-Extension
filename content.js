@@ -2,9 +2,10 @@
 let mainPane = null;
 let stochPane = null;
 let intervalId = false;
+let countTime = 0;
 let currentTabId = false;
 
-class IndexDbDao {
+class IndexedDbDAO {
   constructor(name, version, upgradeCb, doneCb) {
     this.name = name;
     this.version;
@@ -101,6 +102,19 @@ class IndexDbDao {
     return this.transaction('readwrite', table, process, doneCb);
   }
 
+  clearTable(tableName, doneCb) {
+    const process = (transaction) => {
+      const table = transaction.objectStore(tableName);
+      const request = table.clear();
+      request.onsuccess = () => {
+        if (doneCb) {
+          doneCb();
+        }
+      }
+    }
+    return this.transaction('readwrite', tableName, process, doneCb);
+  }
+
   delete(doneCb) {
     const delReq = indexedDB.deleteDatabase(this.name);
     delReq.onsuccess = function (e) {
@@ -138,9 +152,9 @@ function getClosePrice() {
   const titleElement = document.querySelector(".childrenContainer h1");
   const priceElement = document.querySelector(".showPrice");
 
-  let direction = "increase";
+  let direction = "up";
   if (priceElement.style.color == "rgb(246, 70, 93)") {
-    direction = "decrease";
+    direction = "down";
   }
 
   return {
@@ -180,21 +194,37 @@ function checkNotiPermission() {
   }
 }
 
+const dbName = "BinanceDB";
+const stochTbl = "Stochatic";
+
+const dbDA0 = new IndexedDbDAO(dbName, 1, function (db) {
+  db.createObjectStore(stochTbl, {
+    autoIncrement: true
+  });
+}, function () {
+  console.log('ready');
+});
+
 let delayTimeout = false;
-function debounceSendBinanceNoti(data) {
+function throttleHandleData(data) {
   if (delayTimeout) {
     return;
-  } else if (Notification.permission == "granted") {
-    const noti = new Notification(`${data.title} - ${data.direction} - ${data.price}`, {
-      body: `${data.title} - ${data.direction}- ${data.price}\n%K: ${data.k} - %D: ${data.d}`,
+  } else {
+    console.log("handle", data);
+    dbDA0.insert(stochTbl, {
+      time: new Date().getTime(),
+      ...data,
     });
-    delayTimeout = setTimeout(() => {
-      delayTimeout = false;
-    }, 60000);
+    if (Notification.permission == "granted") {
+      const noti = new Notification(`${data.title} - ${data.type} - ${data.direction} - ${data.price}`, {
+        body: `${data.title} - ${data.type} - ${data.direction} - ${data.price}\n%K: ${data.k} - %D: ${data.d}`,
+      });
+      delayTimeout = setTimeout(() => {
+        delayTimeout = false;
+      }, 60000);
+    }
   }
 }
-
-checkNotiPermission();
 
 function sendCountTime(count) {
   const request = {
@@ -205,46 +235,38 @@ function sendCountTime(count) {
   chrome.runtime.sendMessage(request);
 }
 
-const dbName = "BinanceDB";
-const stochTbl = "Stochatic";
-
-const dbDao = new IndexDbDao(dbName, 1, function (db) {
-  db.createObjectStore(stochTbl, {
-    autoIncrement: true
-  });
-}, function () {
-  console.log('ready');
-});
-
-
-
-function startGetDataInternal() {
-  console.log("start", chrome);
-  let count = 0;
-  intervalId = setInterval(() => {
-    const closePrice = getClosePrice();
-    const kdValue = getKDValue();
-    const typeData = getType();
-    const data = {...typeData, ...closePrice, ...kdValue};
-    const kValue = parseFloat(data.k);
-    const dValue = parseFloat(data.d);
-    if (Math.abs(kValue - dValue) <= 0.6) {
-      console.log("send", data);
-      dbDao.insert(stochTbl, {
-        time: new Date().getTime(),
-        ...data,
-      });
-      debounceSendBinanceNoti(data);
-    }
-    sendCountTime(count++);
-  }, 1000);
-} 
-
 function endGetDataInternal() {
   clearInterval(intervalId);
   console.log("end", intervalId);
   intervalId = false;
+  countTime = 0;
 }
+
+function startGetDataInternal() {
+  console.log("start");
+  let check = false;
+  intervalId = setInterval(() => {
+    try {
+      const closePrice = getClosePrice();
+      const kdValue = getKDValue();
+      const typeData = getType();
+      const data = {...typeData, ...closePrice, ...kdValue};
+      const kValue = parseFloat(data.k);
+      const dValue = parseFloat(data.d);
+      const currentCheck = (kValue - dValue) < 0;
+      console.log("demo 1", currentCheck, check);
+      if (countTime > 0 && currentCheck != check) {
+        console.log("demo 2", kValue, dValue);
+        throttleHandleData(data);
+      }
+      check = currentCheck
+      sendCountTime(countTime++);
+    } catch (error) {
+      endGetDataInternal();
+      console.log("error", error);
+    }
+  }, 1000);
+} 
 
 function connectToCurrentTab(request) {
   if (!currentTabId) {
@@ -256,10 +278,10 @@ function connectToCurrentTab(request) {
 }
 
 function downloadCSV() {
-  dbDao.actionToAllRows(stochTbl, (allRows) => {
+  dbDA0.actionToAllRows(stochTbl, (allRows) => {
     const dbValueArray = allRows.reverse().map((row, index) => {
       const timeString = new Date(row.time).toLocaleString("en-GB", { timeZone: "Asia/Ho_Chi_Minh" });
-      return [index, row.title, row.type, row.k, row.d, row.direction, row.price.replace(",", ""), timeString.replace(",", " ")];
+      return [index, row.title, row.type, `'${row.k}`, `'${row.d}`, row.direction, row.price.replace(",", ""), timeString.replace(",", " ")];
     });
 
     let csvContent = `data:text/csv;charset=utf-8,id,title,type,k,d,direction,price,time\n${dbValueArray.map(e => e.join(",")).join("\n")}`;
@@ -270,11 +292,24 @@ function downloadCSV() {
   });
 }
 
+function clearData() {
+  dbDA0.clearTable(stochTbl, () => {
+    console.log("clear table");
+  });
+}
+
+// run function
+checkNotiPermission();
+
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   switch(request.msg) {
     case "start":
-      getPanes();
-      startGetDataInternal();
+      try {
+        getPanes();
+        startGetDataInternal();
+      } catch (error) {
+        console.log("error", error);
+      }
       break;
     case "connect": 
       connectToCurrentTab(request);
@@ -282,7 +317,11 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     case "down-csv":
       downloadCSV();
       break;
+    case "clear-data":
+      clearData();
+      break;
     default:
       endGetDataInternal();
+      break;
   }
 });
