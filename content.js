@@ -254,9 +254,7 @@ function startGetDataInternal() {
       const kValue = parseFloat(data.k);
       const dValue = parseFloat(data.d);
       const currentCheck = (kValue - dValue) < 0;
-      console.log("demo 1", currentCheck, check);
       if (countTime > 0 && currentCheck != check) {
-        console.log("demo 2", kValue, dValue);
         throttleHandleData(data);
       }
       check = currentCheck
