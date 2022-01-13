@@ -225,18 +225,27 @@ function throttleHandleData(kdValue) {
       });
       delayTimeout = setTimeout(() => {
         delayTimeout = false;
-      }, 60000);
+      }, 3 * 60000);
     }
   }
 }
 
-function sendCountTime(count) {
-  const request = {
-    msg: "count",
-    count,
-    tabId: currentTabId
-  };
-  chrome.runtime.sendMessage(request);
+let delayCountTime = false;
+function sendCountTime() {
+  if (delayCountTime) {
+    return;
+  } else {
+    const request = {
+      msg: "count",
+      count: countTime,
+      tabId: currentTabId
+    };
+    chrome.runtime.sendMessage(request);
+    countTime++;
+    delayCountTime = setTimeout(() => {
+      delayCountTime = false;
+    }, 1000);
+  }
 }
 
 function endGetDataInternal() {
@@ -248,24 +257,21 @@ function endGetDataInternal() {
 
 function startGetDataInternal() {
   console.log("start");
-  let check = false;
   intervalId = setInterval(() => {
     try {
       const kdValue = getKDValue();
       const kValue = parseFloat(kdValue.k);
       const dValue = parseFloat(kdValue.d);
-      const currentCheck = (kValue - dValue) < 0;
-      if (countTime > 0 && currentCheck != check) {
+      const minus = Math.abs(kValue - dValue);
+      if (minus <= 0.1) {
         throttleHandleData(kdValue);
       }
-      check = currentCheck
-      sendCountTime(countTime);
-      countTime += STEP_TIME
+      sendCountTime();
     } catch (error) {
       endGetDataInternal();
       console.log("error", error);
     }
-  }, STEP_TIME * 1000);
+  }, STEP_TIME);
 } 
 
 function connectToCurrentTab(request) {
